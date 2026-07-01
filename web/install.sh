@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Fred "interest" installer
-#   curl -fsSL https://fred.cash/interest | bash
+#   curl -fsSL https://get.fred.cash | bash
 #
 # Detects macOS arch, downloads the matching binary from GitHub Releases,
 # installs to a directory on PATH, and prints next steps.
