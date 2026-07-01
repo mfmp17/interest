@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/interest", "destination": "/install.sh" },
+    { "source": "/v1/status", "destination": "/api/status" }
+  ],
+  "headers": [
+    {
+      "source": "/install.sh",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ]
+}
