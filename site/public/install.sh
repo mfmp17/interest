@@ -14,7 +14,7 @@ BINARY="interest"
 # --- pretty output -----------------------------------------------------------
 c_green='\033[32m'; c_cyan='\033[36m'; c_red='\033[31m'; c_dim='\033[2m'; c_bold='\033[1m'; c_reset='\033[0m'
 say()  { printf "%b%s%b\n" "$c_dim" "$1" "$c_reset"; }
-ok()   { printf "%b● %s%b\n" "$c_green" "$1" "$c_reset"; }
+ok()   { printf "%b● %b%b\n" "$c_green" "$1" "$c_reset"; }
 err()  { printf "%b✗ %s%b\n" "$c_red" "$1" "$c_reset" >&2; }
 
 # --- platform detection ------------------------------------------------------
