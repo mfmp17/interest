@@ -1,0 +1,12 @@
+# binaries / build artifacts — shipped via GitHub Releases, not committed
+dist/
+api/fred-api
+cli/interest
+*.test
+
+# OS junk
+.DS_Store
+
+# vercel
+.vercel
+node_modules/
