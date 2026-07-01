@@ -1,30 +1,59 @@
 # Fred — `interest` CLI
 
-Anonymous, no-accounts CLI. Users run one line and they're connected:
+Anonymous, no-accounts CLI. Users run one line on a Mac and they're connected:
 
 ```bash
-curl -fsSL https://fred.cash/interest | bash
+curl -fsSL https://get.fred.cash | bash
 interest
+```
+
+## Architecture (as deployed)
+
+- **`get.fred.cash`** → Vercel → serves the install script (`install.sh`)
+- **`api.fred.cash`** → Vercel serverless Go function → the API the CLI calls
+- **`fred.cash`** (apex) → a separate Vercel project (the Plinko game), untouched
+- **binaries** → GitHub Releases on `mfmp17/interest` (arm64 + Intel)
+- **DNS** → Namecheap (two A records → Vercel), no Cloudflare
+
+```
+get.fred.cash ──┐
+                ├─► Vercel project "site"  ──► install.sh + /api/status
+api.fred.cash ──┘
+fred.cash (apex) ─► Vercel project "fred-cash" (Plinko game — separate)
 ```
 
 ## What's in this repo
 
 ```
 fred/
-├── cli/            # the `interest` command (Go)
-│   └── main.go
-├── api/            # backend API stub (Go) — serves /v1/status
-│   └── main.go
-├── web/
-│   └── install.sh  # the script served at fred.cash/interest
-├── build.sh        # cross-compiles CLI for arm64 + amd64 -> ./dist
-└── dist/           # release binaries (upload these to GitHub Releases)
+├── cli/main.go         # the `interest` command (Go, single static binary)
+├── api/main.go         # standalone API server (for local dev)
+├── web/install.sh      # source of the installer (edit here)
+├── site/               # the Vercel deployment unit
+│   ├── vercel.json     # host-based routing (see below)
+│   ├── public/install.sh   # copy of web/install.sh, served by Vercel
+│   └── api/status.go   # serverless function -> api.fred.cash/v1/status
+├── build.sh            # cross-compiles CLI for arm64 + amd64 -> ./dist
+├── dist/               # release binaries (uploaded to GitHub Releases)
+├── README.md           # this file
+└── DEPLOY.md           # step-by-step deploy / update guide
 ```
+
+### How routing works (`site/vercel.json`)
+
+One Vercel project ("site") owns both subdomains. Rewrites route by host/path:
+
+- `get.fred.cash/`         → `/install.sh`  (host-based rewrite)
+- `get.fred.cash/interest` → `/install.sh`  (alias, still works)
+- `api.fred.cash/v1/status`→ `/api/status`  (the Go function)
+
+The `install.sh` served at `get.fred.cash` is served as `text/plain` so
+`curl … | bash` works.
 
 ## Local dev / testing
 
 ```bash
-# terminal 1 — run the API
+# terminal 1 — run the standalone API
 cd api && go build -o fred-api . && PORT=8080 ./fred-api
 
 # terminal 2 — point the CLI at local API and run it
@@ -33,88 +62,30 @@ INTEREST_API=http://localhost:8080 ./interest
 INTEREST_API=http://localhost:8080 ./interest status
 ```
 
----
+The CLI defaults to `https://api.fred.cash` (see `apiBase()` in `cli/main.go`);
+override with the `INTEREST_API` env var during development.
 
-# GOING LIVE — 3 things to wire up
-
-You need three URLs to exist. Here's exactly how, cheapest/simplest path.
-
-## 1. Publish the CLI binaries to GitHub Releases
-
-This is what `install.sh` downloads. One-time repo setup, then a release per version.
+## Shipping a new CLI version
 
 ```bash
-# authenticate gh (interactive — pick GitHub.com, HTTPS, login via browser)
-gh auth login
-
-# create the repo on your personal account
 cd ~/fred
-gh repo create mfmp17/interest --public --source=. --remote=origin --push
-
-# build fresh binaries and cut a release
-./build.sh 0.1.0
-gh release create v0.1.0 ./dist/interest_darwin_arm64 ./dist/interest_darwin_amd64 \
-    --title "v0.1.0" --notes "first release"
+./build.sh 0.2.0
+gh release create v0.2.0 dist/interest_darwin_arm64 dist/interest_darwin_amd64 \
+    --title v0.2.0 --notes "what changed"
 ```
 
-After this, these URLs work automatically (note `latest`):
-- https://github.com/mfmp17/interest/releases/latest/download/interest_darwin_arm64
-- https://github.com/mfmp17/interest/releases/latest/download/interest_darwin_amd64
+The installer always pulls the `latest` release, so users re-running the curl
+line get the new binary automatically — no change to `install.sh` needed.
 
-The installer always pulls `latest`, so future releases upgrade users with no script change.
-
-## 2. Serve the install script at `https://fred.cash/interest`
-
-Easiest zero-server option: **Cloudflare Workers** (free). It just returns the text of `web/install.sh`.
-
-Alternative even-simpler options:
-- **GitHub Pages**: put `install.sh` in a repo, enable Pages, then point `fred.cash/interest` there. (Path handling is fussier.)
-- **Any static host / your own tiny server**: serve the file as `text/plain` at that path.
-
-### Cloudflare Worker recipe (recommended)
-1. Cloudflare dashboard → Workers & Pages → Create Worker.
-2. Paste the worker below (it embeds the script).
-3. Add a route: `fred.cash/interest*` → this worker (requires fred.cash on Cloudflare DNS).
-
-```js
-const SCRIPT = `PASTE THE ENTIRE CONTENTS OF web/install.sh HERE`;
-export default {
-  fetch() {
-    return new Response(SCRIPT, {
-      headers: { "content-type": "text/plain; charset=utf-8" },
-    });
-  },
-};
-```
-
-Test: `curl -fsSL https://fred.cash/interest` should print the script.
-
-## 3. Host the backend API at `https://api.fred.cash`
-
-The CLI defaults to `https://api.fred.cash`. Deploy `api/` anywhere that runs a Go binary or container:
-
-- **Fly.io** (simple, free tier): `fly launch` in the `api/` dir, it detects Go.
-- **Railway / Render**: connect the repo, set start command to the built binary.
-- **A VPS**: copy the `fred-api` binary, run behind nginx/caddy with TLS.
-
-Then in your DNS (Cloudflare):
-- `api.fred.cash` → your host (A/AAAA record or CNAME to Fly/Railway).
-
-Until the API is live you can still demo everything with `INTEREST_API=http://localhost:8080 interest`.
-
----
-
-## DNS summary (in your fred.cash registrar / Cloudflare)
-
-| Record | Points to | Purpose |
-|--------|-----------|---------|
-| `fred.cash/interest` (Worker route) | Cloudflare Worker | serves install.sh |
-| `api.fred.cash` (A/CNAME) | your API host | the backend |
-
-## Cutting a new version later
+## Updating the installer or the API
 
 ```bash
-./build.sh 0.2.0
-gh release create v0.2.0 ./dist/interest_darwin_arm64 ./dist/interest_darwin_amd64 --title v0.2.0 --notes "..."
+# edit web/install.sh, then sync + deploy:
+cp web/install.sh site/public/install.sh
+cd site && vercel --prod
+
+# edit site/api/status.go, then:
+cd site && vercel --prod
 ```
-Users re-running the curl line get the new binary automatically.
+
+See `DEPLOY.md` for the full deploy story and troubleshooting.
