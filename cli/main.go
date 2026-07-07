@@ -51,6 +51,14 @@ func main() {
 		connect()
 	case "status":
 		printStatus()
+	case "deposit", "lock":
+		deposit()
+	case "balance", "bal":
+		balance()
+	case "claim":
+		claim()
+	case "withdraw":
+		withdraw()
 	case "version", "--version", "-v":
 		fmt.Printf("interest %s\n", version)
 	case "help", "--help", "-h":
@@ -136,11 +144,16 @@ func help() {
 
 %sUsage:%s
   interest            connect and show current yield
+  interest deposit    deposit & lock funds, choose your yield plan
+  interest balance    show your position, accrued interest, unlock date
+  interest claim      claim streamed interest (Classic 8%% plan)
+  interest withdraw   withdraw instant payout / unlocked principal
   interest status     show live service status
   interest version    print version
   interest help       show this
 
 %sEnv:%s
   INTEREST_API        override API base (default https://api.fred.cash)
+  INTEREST_FAST       skip the chain-watch animation in demos
 `, bold, reset, bold, reset, bold, reset)
 }

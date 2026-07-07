@@ -2,7 +2,10 @@
 dist/
 api/fred-api
 cli/interest
+backend/fred-backend
 *.test
+.env
+.env.*
 
 # OS junk
 .DS_Store
