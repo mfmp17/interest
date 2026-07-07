@@ -7,9 +7,8 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /out/fred-backend .
 
 FROM alpine:3.21
-RUN adduser -D -u 10001 appuser && mkdir -p /data && chown -R appuser:appuser /data
-USER appuser
 WORKDIR /app
+RUN mkdir -p /data
 COPY --from=build /out/fred-backend /app/fred-backend
 ENV PORT=8090
 ENV FRED_STATE_PATH=/data/mainnet-state.json
