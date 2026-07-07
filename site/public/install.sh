@@ -38,14 +38,21 @@ say "Finding latest release..."
 URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
 
 # --- choose install dir ------------------------------------------------------
-# Prefer /usr/local/bin if writable, else ~/.local/bin (added to PATH note).
-if [ -w "/usr/local/bin" ] 2>/dev/null; then
-  INSTALL_DIR="/usr/local/bin"
-elif [ -w "/opt/homebrew/bin" ] 2>/dev/null; then
+# Best user experience on macOS: install into a directory already on the default
+# PATH. If it is not writable, use sudo. Only fall back to ~/.local/bin when sudo
+# is unavailable/cancelled.
+INSTALL_DIR=""
+USE_SUDO=""
+
+if [ -d "/opt/homebrew/bin" ] && [ -w "/opt/homebrew/bin" ]; then
   INSTALL_DIR="/opt/homebrew/bin"
+elif [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+  INSTALL_DIR="/usr/local/bin"
+elif command -v sudo >/dev/null 2>&1; then
+  INSTALL_DIR="/usr/local/bin"
+  USE_SUDO="sudo"
 else
   INSTALL_DIR="$HOME/.local/bin"
-  mkdir -p "$INSTALL_DIR"
 fi
 
 TMP="$(mktemp)"
@@ -58,16 +65,38 @@ if ! curl -fsSL "$URL" -o "$TMP"; then
 fi
 
 chmod +x "$TMP"
-mv "$TMP" "${INSTALL_DIR}/${BINARY}"
+
+if [ -n "$USE_SUDO" ]; then
+  say "Installing to ${INSTALL_DIR} (may ask for your Mac password)..."
+  if ! sudo mkdir -p "$INSTALL_DIR" || ! sudo install -m 0755 "$TMP" "${INSTALL_DIR}/${BINARY}"; then
+    say "sudo install failed/cancelled; falling back to ~/.local/bin"
+    INSTALL_DIR="$HOME/.local/bin"
+    mkdir -p "$INSTALL_DIR"
+    mv "$TMP" "${INSTALL_DIR}/${BINARY}"
+  else
+    rm -f "$TMP"
+  fi
+else
+  mkdir -p "$INSTALL_DIR"
+  mv "$TMP" "${INSTALL_DIR}/${BINARY}"
+fi
+
 ok "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+
+# --- verify ------------------------------------------------------------------
+if ! "${INSTALL_DIR}/${BINARY}" version >/dev/null 2>&1; then
+  err "Installed file did not run correctly."
+  exit 1
+fi
 
 # --- PATH check --------------------------------------------------------------
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) : ;;
   *)
     say ""
-    say "Add ${INSTALL_DIR} to your PATH:"
+    say "${INSTALL_DIR} is not currently on your PATH. Add it with:"
     printf "  %becho 'export PATH=\"%s:\$PATH\"' >> ~/.zshrc && source ~/.zshrc%b\n" "$c_cyan" "$INSTALL_DIR" "$c_reset"
+    say "Or run it directly once: ${INSTALL_DIR}/${BINARY}"
     ;;
 esac
 
