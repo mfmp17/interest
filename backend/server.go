@@ -19,7 +19,19 @@ func (s *Server) routes() http.Handler {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"service": "fred-backend", "status": "operational", "network": s.app.cfg.Network, "chain_id": s.app.cfg.ChainID, "lock_seconds": s.app.cfg.LockSeconds, "treasury": s.app.cfg.TreasuryAddr.Hex(), "server_time": time.Now().UTC().Format(time.RFC3339)})
+	writeJSON(w, map[string]any{
+		"service":      "fred",
+		"status":       "operational",
+		"apr":          8,
+		"lock_days":    365,
+		"assets":       []string{"USDC"},
+		"tvl":          "$0",
+		"network":      s.app.cfg.Network,
+		"chain_id":     s.app.cfg.ChainID,
+		"lock_seconds": s.app.cfg.LockSeconds,
+		"treasury":     s.app.cfg.TreasuryAddr.Hex(),
+		"server_time":  time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 type createDepositReq struct {
