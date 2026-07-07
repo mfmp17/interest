@@ -35,6 +35,17 @@ func OpenStore(path string) (*Store, error) {
 			return nil, err
 		}
 	}
+	changed := false
+	for _, p := range s.state.Positions {
+		beforeExpected, beforePrincipal := p.ExpectedPrincipal, p.Principal
+		p.NormalizeFundingModel()
+		if p.ExpectedPrincipal != beforeExpected || p.Principal != beforePrincipal {
+			changed = true
+		}
+	}
+	if changed {
+		_ = s.persistLocked()
+	}
 	return s, nil
 }
 
@@ -50,6 +61,7 @@ func (s *Store) NextIndex() uint64 {
 func (s *Store) Upsert(p *Position) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	p.NormalizeFundingModel()
 	for i := range s.state.Positions {
 		if s.state.Positions[i].ID == p.ID {
 			s.state.Positions[i] = p

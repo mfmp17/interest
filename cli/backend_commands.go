@@ -31,24 +31,25 @@ type receiptStore struct {
 }
 
 type backendPosition struct {
-	ID               string `json:"id"`
-	Asset            string `json:"asset"`
-	Decimals         uint8  `json:"decimals"`
-	Principal        string `json:"principal"`
-	Plan             string `json:"plan"`
-	Status           string `json:"status"`
-	DepositAddress   string `json:"deposit_address"`
-	DepositorAddress string `json:"depositor_address"`
-	CreatedAt        string `json:"created_at"`
-	ConfirmedAt      string `json:"confirmed_at"`
-	UnlockAt         string `json:"unlock_at"`
-	LockSeconds      int64  `json:"lock_seconds"`
-	InterestPaid     string `json:"interest_paid"`
-	InstantPaid      string `json:"instant_paid"`
-	PrincipalPaid    bool   `json:"principal_paid"`
-	DepositTx        string `json:"deposit_tx"`
-	GasTx            string `json:"gas_tx"`
-	SweepTx          string `json:"sweep_tx"`
+	ID                string `json:"id"`
+	Asset             string `json:"asset"`
+	Decimals          uint8  `json:"decimals"`
+	ExpectedPrincipal string `json:"expected_principal"`
+	Principal         string `json:"principal"`
+	Plan              string `json:"plan"`
+	Status            string `json:"status"`
+	DepositAddress    string `json:"deposit_address"`
+	DepositorAddress  string `json:"depositor_address"`
+	CreatedAt         string `json:"created_at"`
+	ConfirmedAt       string `json:"confirmed_at"`
+	UnlockAt          string `json:"unlock_at"`
+	LockSeconds       int64  `json:"lock_seconds"`
+	InterestPaid      string `json:"interest_paid"`
+	InstantPaid       string `json:"instant_paid"`
+	PrincipalPaid     bool   `json:"principal_paid"`
+	DepositTx         string `json:"deposit_tx"`
+	GasTx             string `json:"gas_tx"`
+	SweepTx           string `json:"sweep_tx"`
 }
 
 type createDepositResp struct {
@@ -64,6 +65,10 @@ type positionResp struct {
 	Claimable        string          `json:"claimable"`
 	ClaimableDisplay string          `json:"claimable_display"`
 	PrincipalDisplay string          `json:"principal_display"`
+	ExpectedDisplay  string          `json:"expected_display"`
+	MissingDisplay   string          `json:"missing_display"`
+	ExtraDisplay     string          `json:"extra_display"`
+	FundingCount     int             `json:"funding_count"`
 }
 
 type txResp struct {
@@ -131,7 +136,8 @@ func backendDeposit() {
 
 	saveReceipt(receipt{ID: out.Position.ID, Token: out.ClaimToken, Asset: out.Position.Asset, Plan: out.Position.Plan, DepositAddress: out.Position.DepositAddress, Network: out.Network, ChainID: out.ChainID, CreatedAt: time.Now().UTC().Format(time.RFC3339)})
 
-	fmt.Printf("\n  %sSend exactly %s USDC on Base mainnet to:%s\n\n", bold, amt, reset)
+	fmt.Printf("\n  %sSend %s USDC on Base mainnet to:%s\n", bold, amt, reset)
+	fmt.Printf("  %sLess is accepted and earns immediately; send more anytime to top up.%s\n\n", dim, reset)
 	qrterminal.GenerateHalfBlock(out.DepositURI, qrterminal.L, os.Stdout)
 	fmt.Printf("\n  %s%s%s\n", cyan+bold, out.Position.DepositAddress, reset)
 	fmt.Printf("\n  %sReceipt saved locally. Do not delete ~/.interest/receipts.json%s\n", dim, reset)
@@ -153,6 +159,14 @@ func backendBalance() {
 	fmt.Printf("\n  %s%s● Fred position%s\n", green, bold, reset)
 	fmt.Printf("    Status          %s\n", p.Status)
 	fmt.Printf("    Principal       %s %s\n", pos.PrincipalDisplay, p.Asset)
+	fmt.Printf("    Target          %s %s\n", pos.ExpectedDisplay, p.Asset)
+	if pos.MissingDisplay != "0.00" {
+		fmt.Printf("    Missing top-up  %s%s %s%s   ← send more anytime to same address\n", bold, pos.MissingDisplay, p.Asset, reset)
+	}
+	if pos.ExtraDisplay != "0.00" {
+		fmt.Printf("    Extra accepted  %s%s %s%s   ← counted as principal\n", green, pos.ExtraDisplay, p.Asset, reset)
+	}
+	fmt.Printf("    Fundings        %d\n", pos.FundingCount)
 	fmt.Printf("    Plan            %s\n", planLabel(p.Plan))
 	fmt.Printf("    Claimable       %s %s\n", pos.ClaimableDisplay, p.Asset)
 	fmt.Printf("    Deposit address %s\n", short(p.DepositAddress))

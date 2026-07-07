@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"time"
 
@@ -87,27 +88,63 @@ func (a *App) ScanOnce(ctx context.Context) error {
 		return err
 	}
 	for _, p := range a.store.All() {
-		if p.Status != StatusPending {
+		if p.Status == StatusClosed || p.PrincipalPaid {
 			continue
 		}
-		asset := a.cfg.Assets[p.Asset]
 		to := common.HexToAddress(p.DepositAddress)
-		tr, err := a.chain.FindInboundTransfer(ctx, asset.Address, to, p.StartBlock, p.principalInt())
+		trs, err := a.chain.InboundTransfersAnyToken(ctx, to, p.StartBlock)
 		if err != nil {
 			return err
 		}
-		if tr == nil {
-			continue
+		changed := false
+		for _, tr := range trs {
+			if latest < tr.Block+a.cfg.Confirmations-1 {
+				continue
+			}
+			asset, supported := a.assetByToken(tr.Token)
+			if supported && asset.Decimals == p.Decimals {
+				if p.AddFunding(tr.TxHash.Hex(), tr.From.Hex(), tr.Amount, tr.Block, time.Now().UTC()) {
+					changed = true
+					if asset.Symbol != p.Asset {
+						if p.AddAdminAlert(AdminAlert{Kind: "alternate_stable_accepted", TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: "supported stable sent to deposit address and counted as principal"}) {
+							log.Printf("ADMIN_ALERT position=%s kind=alternate_stable_accepted token=%s amount=%s tx=%s from=%s", p.ID, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
+							changed = true
+						}
+					}
+				}
+				continue
+			}
+			kind := "unsupported_token"
+			msg := "unsupported ERC-20 sent to deposit address; admin recovery may be needed"
+			if supported && asset.Decimals != p.Decimals {
+				kind = "unsupported_token_decimals"
+				msg = "supported token sent but decimals do not match this position; admin review needed"
+			}
+			if p.AddAdminAlert(AdminAlert{Kind: kind, TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: msg}) {
+				log.Printf("ADMIN_ALERT position=%s kind=%s token=%s amount=%s tx=%s from=%s", p.ID, kind, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
+				changed = true
+			}
 		}
-		if latest < tr.Block+a.cfg.Confirmations-1 {
-			continue
+		if changed {
+			_ = a.store.Upsert(p)
 		}
-		p.MarkConfirmed(time.Now().UTC(), tr.TxHash.Hex())
-		p.DepositorAddress = tr.From.Hex()
-		_ = a.store.Upsert(p)
-		_ = a.TrySweep(ctx, p)
+		if p.Status == StatusConfirmed {
+			_ = a.TrySweep(ctx, p)
+		}
 	}
 	return nil
+}
+
+func (a *App) assetByToken(token common.Address) (AssetConfig, bool) {
+	for _, asset := range a.cfg.Assets {
+		if asset.Address == (common.Address{}) {
+			continue
+		}
+		if asset.Address == token {
+			return asset, true
+		}
+	}
+	return AssetConfig{}, false
 }
 
 func (a *App) TrySweep(ctx context.Context, p *Position) error {

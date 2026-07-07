@@ -24,6 +24,7 @@ type Config struct {
 	MasterSeed    []byte
 	TreasuryKey   string
 	TreasuryAddr  common.Address
+	AdminToken    string
 	Confirmations uint64
 	Assets        map[string]AssetConfig
 }
@@ -53,6 +54,7 @@ func LoadConfig() Config {
 		}
 	}
 	cfg.TreasuryKey = os.Getenv("FRED_TREASURY_PRIVATE_KEY")
+	cfg.AdminToken = os.Getenv("FRED_ADMIN_TOKEN")
 	return cfg
 }
 

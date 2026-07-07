@@ -74,13 +74,14 @@ func (cc *ChainClient) ERC20Balance(ctx context.Context, token, owner common.Add
 
 type InboundTransfer struct {
 	TxHash common.Hash    `json:"tx_hash"`
+	Token  common.Address `json:"token"`
 	From   common.Address `json:"from"`
 	To     common.Address `json:"to"`
 	Amount *big.Int       `json:"amount"`
 	Block  uint64         `json:"block"`
 }
 
-func (cc *ChainClient) FindInboundTransfer(ctx context.Context, token, to common.Address, fromBlock uint64, minAmount *big.Int) (*InboundTransfer, error) {
+func (cc *ChainClient) InboundTransfers(ctx context.Context, token, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
 	toTopic := common.BytesToHash(to.Bytes())
 	q := ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
@@ -91,11 +92,42 @@ func (cc *ChainClient) FindInboundTransfer(ctx context.Context, token, to common
 	if err != nil {
 		return nil, err
 	}
+	out := make([]*InboundTransfer, 0, len(logs))
 	for _, lg := range logs {
 		tr := parseTransferLog(lg)
-		if tr == nil {
-			continue
+		if tr != nil {
+			out = append(out, tr)
 		}
+	}
+	return out, nil
+}
+
+func (cc *ChainClient) InboundTransfersAnyToken(ctx context.Context, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
+	toTopic := common.BytesToHash(to.Bytes())
+	q := ethereum.FilterQuery{
+		FromBlock: new(big.Int).SetUint64(fromBlock),
+		Topics:    [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}},
+	}
+	logs, err := cc.c.FilterLogs(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*InboundTransfer, 0, len(logs))
+	for _, lg := range logs {
+		tr := parseTransferLog(lg)
+		if tr != nil {
+			out = append(out, tr)
+		}
+	}
+	return out, nil
+}
+
+func (cc *ChainClient) FindInboundTransfer(ctx context.Context, token, to common.Address, fromBlock uint64, minAmount *big.Int) (*InboundTransfer, error) {
+	trs, err := cc.InboundTransfers(ctx, token, to, fromBlock)
+	if err != nil {
+		return nil, err
+	}
+	for _, tr := range trs {
 		if tr.Amount.Cmp(minAmount) >= 0 {
 			return tr, nil
 		}
@@ -110,5 +142,5 @@ func parseTransferLog(lg types.Log) *InboundTransfer {
 	from := common.BytesToAddress(lg.Topics[1].Bytes()[12:])
 	to := common.BytesToAddress(lg.Topics[2].Bytes()[12:])
 	amt := new(big.Int).SetBytes(lg.Data)
-	return &InboundTransfer{TxHash: lg.TxHash, From: from, To: to, Amount: amt, Block: lg.BlockNumber}
+	return &InboundTransfer{TxHash: lg.TxHash, Token: lg.Address, From: from, To: to, Amount: amt, Block: lg.BlockNumber}
 }

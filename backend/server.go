@@ -14,6 +14,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	mux.HandleFunc("/v1/status", s.status)
 	mux.HandleFunc("/v1/deposits", s.createDeposit)
+	mux.HandleFunc("/v1/admin/positions/", s.adminPositionAction)
 	mux.HandleFunc("/v1/positions/", s.positionAction)
 	return cors(mux)
 }
@@ -128,7 +129,17 @@ func (s *Server) withdraw(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 func positionDTO(p *Position) map[string]any {
-	return map[string]any{"position": p, "claimable": p.Claimable(time.Now()).String(), "claimable_display": FormatUnits(p.Claimable(time.Now()), p.Decimals), "principal_display": FormatUnits(p.principalInt(), p.Decimals)}
+	claimable := p.Claimable(time.Now())
+	return map[string]any{
+		"position":          p,
+		"claimable":         claimable.String(),
+		"claimable_display": FormatUnits(claimable, p.Decimals),
+		"principal_display": FormatUnits(p.principalInt(), p.Decimals),
+		"expected_display":  FormatUnits(p.expectedPrincipalInt(), p.Decimals),
+		"missing_display":   FormatUnits(p.MissingPrincipal(), p.Decimals),
+		"extra_display":     FormatUnits(p.ExtraPrincipal(), p.Decimals),
+		"funding_count":     len(p.Fundings),
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

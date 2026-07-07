@@ -34,7 +34,7 @@ func TestStorePersistsPositionsAndNextIndex(t *testing.T) {
 	if !ok {
 		t.Fatal("position missing after reload")
 	}
-	if got.DepositAddress != "0xabc" || got.Principal != "1000" {
+	if got.DepositAddress != "0xabc" || got.ExpectedPrincipal != "1000" || got.Principal != "0" {
 		t.Fatalf("bad loaded position: %+v", got)
 	}
 }
