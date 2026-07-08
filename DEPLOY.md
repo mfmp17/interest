@@ -120,3 +120,12 @@ cd site && vercel --prod --yes
   https://github.com/mfmp17/interest/releases
 - Don't attach `fred.cash` (apex) to the `site` project — it belongs to the
   `fred-cash` game project and moving it takes the game offline.
+
+
+## Updating
+
+```bash
+fred.cash update
+```
+
+This downloads the latest GitHub Release asset for your Mac and keeps the legacy `interest` alias.

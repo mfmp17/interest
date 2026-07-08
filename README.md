@@ -89,3 +89,12 @@ cd site && vercel --prod
 ```
 
 See `DEPLOY.md` for the full deploy story and troubleshooting.
+
+
+## Updating
+
+```bash
+fred.cash update
+```
+
+This downloads the latest GitHub Release asset for your Mac and keeps the legacy `interest` alias.

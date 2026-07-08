@@ -63,6 +63,8 @@ func main() {
 		claim()
 	case "withdraw":
 		withdraw()
+	case "update", "upgrade":
+		updateCLI()
 	case "version", "--version", "-v":
 		fmt.Printf("fred.cash %s\n", version)
 	case "help", "--help", "-h":
@@ -174,6 +176,7 @@ func help() {
   fred.cash claim      claim streamed interest (Classic 8%% plan)
   fred.cash withdraw   withdraw instant payout / unlocked principal
   fred.cash status     show live service status
+  fred.cash update     update fred.cash to the latest release
   fred.cash version    print version
   fred.cash help       show this
 
