@@ -23,6 +23,8 @@ type ChainClient struct {
 	c       *ethclient.Client
 }
 
+const maxGetLogsBlockRange uint64 = 9_500
+
 func NewChainClient(ctx context.Context, rpc string, chainID int64) (*ChainClient, error) {
 	c, err := ethclient.DialContext(ctx, rpc)
 	if err != nil {
@@ -83,35 +85,57 @@ type InboundTransfer struct {
 
 func (cc *ChainClient) InboundTransfers(ctx context.Context, token, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
 	toTopic := common.BytesToHash(to.Bytes())
-	q := ethereum.FilterQuery{
-		FromBlock: new(big.Int).SetUint64(fromBlock),
-		Addresses: []common.Address{token},
-		Topics:    [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}},
-	}
-	logs, err := cc.c.FilterLogs(ctx, q)
+	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, []common.Address{token}, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*InboundTransfer, 0, len(logs))
-	for _, lg := range logs {
-		tr := parseTransferLog(lg)
-		if tr != nil {
-			out = append(out, tr)
-		}
-	}
-	return out, nil
+	return parseTransferLogs(logs), nil
 }
 
 func (cc *ChainClient) InboundTransfersAnyToken(ctx context.Context, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
 	toTopic := common.BytesToHash(to.Bytes())
-	q := ethereum.FilterQuery{
-		FromBlock: new(big.Int).SetUint64(fromBlock),
-		Topics:    [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}},
-	}
-	logs, err := cc.c.FilterLogs(ctx, q)
+	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, nil, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
 	if err != nil {
 		return nil, err
 	}
+	return parseTransferLogs(logs), nil
+}
+
+func (cc *ChainClient) filterTransferLogsChunked(ctx context.Context, fromBlock uint64, addresses []common.Address, topics [][]common.Hash) ([]types.Log, error) {
+	latest, err := cc.LatestBlock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if fromBlock > latest {
+		return nil, nil
+	}
+
+	var all []types.Log
+	for start := fromBlock; start <= latest; {
+		end := start + maxGetLogsBlockRange - 1
+		if end > latest || end < start {
+			end = latest
+		}
+		q := ethereum.FilterQuery{
+			FromBlock: new(big.Int).SetUint64(start),
+			ToBlock:   new(big.Int).SetUint64(end),
+			Addresses: addresses,
+			Topics:    topics,
+		}
+		logs, err := cc.c.FilterLogs(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, logs...)
+		if end == latest {
+			break
+		}
+		start = end + 1
+	}
+	return all, nil
+}
+
+func parseTransferLogs(logs []types.Log) []*InboundTransfer {
 	out := make([]*InboundTransfer, 0, len(logs))
 	for _, lg := range logs {
 		tr := parseTransferLog(lg)
@@ -119,7 +143,7 @@ func (cc *ChainClient) InboundTransfersAnyToken(ctx context.Context, to common.A
 			out = append(out, tr)
 		}
 	}
-	return out, nil
+	return out
 }
 
 func (cc *ChainClient) FindInboundTransfer(ctx context.Context, token, to common.Address, fromBlock uint64, minAmount *big.Int) (*InboundTransfer, error) {
