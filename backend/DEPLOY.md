@@ -71,7 +71,7 @@ curl https://<backend-host>/v1/status
 3. Run:
 
 ```bash
-INTEREST_API=https://<backend-host> interest deposit
+INTEREST_API=https://<backend-host> fred.cash deposit
 ```
 
 Use `$10 USDC`, Instant 5%.
@@ -80,9 +80,9 @@ Use `$10 USDC`, Instant 5%.
 5. Run:
 
 ```bash
-INTEREST_API=https://<backend-host> interest balance
-INTEREST_API=https://<backend-host> interest withdraw
+INTEREST_API=https://<backend-host> fred.cash balance
+INTEREST_API=https://<backend-host> fred.cash withdraw
 ```
 
-6. After 365 seconds, run `interest withdraw` again to test principal withdrawal.
+6. After 365 seconds, run `fred.cash withdraw` again to test principal withdrawal.
 7. If clean, set `FRED_LOCK_SECONDS=31536000`, redeploy/restart, then publish CLI v0.2.0.

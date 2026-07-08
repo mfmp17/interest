@@ -22,13 +22,17 @@ func apiBase() string {
 var version = "dev"
 
 type statusResp struct {
-	Service    string   `json:"service"`
-	APR        float64  `json:"apr"`
-	LockDays   int      `json:"lock_days"`
-	Assets     []string `json:"assets"`
-	TVL        string   `json:"tvl"`
-	Status     string   `json:"status"`
-	ServerTime string   `json:"server_time"`
+	Service         string   `json:"service"`
+	APR             float64  `json:"apr"`
+	LockDays        int      `json:"lock_days"`
+	Assets          []string `json:"assets"`
+	TVL             string   `json:"tvl"`
+	Status          string   `json:"status"`
+	Treasury        string   `json:"treasury"`
+	TreasuryETH     string   `json:"treasury_eth"`
+	TreasuryUSDC    string   `json:"treasury_usdc"`
+	TreasuryWarning string   `json:"treasury_warning"`
+	ServerTime      string   `json:"server_time"`
 }
 
 const (
@@ -60,7 +64,7 @@ func main() {
 	case "withdraw":
 		withdraw()
 	case "version", "--version", "-v":
-		fmt.Printf("interest %s\n", version)
+		fmt.Printf("fred.cash %s\n", version)
 	case "help", "--help", "-h":
 		help()
 	default:
@@ -111,7 +115,8 @@ func connect() {
 	fmt.Printf("  %sAssets%s %s\n", dim, reset, join(s.Assets))
 	fmt.Printf("  %sLock%s   %d days\n", dim, reset, s.LockDays)
 	fmt.Printf("  %sTVL%s    %s\n", dim, reset, s.TVL)
-	fmt.Printf("\n%sYou're in. Run %sinterest status%s%s anytime.%s\n", dim, reset+cyan, reset, dim, reset)
+	printTreasuryNotice(s)
+	fmt.Printf("\n%sYou're in. Run %sfred.cash status%s%s anytime.%s\n", dim, reset+cyan, reset, dim, reset)
 }
 
 func printStatus() {
@@ -125,7 +130,27 @@ func printStatus() {
 	fmt.Printf("  Lock:   %d days\n", s.LockDays)
 	fmt.Printf("  Assets: %s\n", join(s.Assets))
 	fmt.Printf("  TVL:    %s\n", s.TVL)
+	printTreasuryNotice(s)
 	fmt.Printf("  Time:   %s\n", s.ServerTime)
+}
+
+func printTreasuryNotice(s *statusResp) {
+	if s == nil {
+		return
+	}
+	if s.TreasuryUSDC != "" || s.TreasuryETH != "" {
+		fmt.Printf("  %sTreasury%s %s USDC · %s ETH\n", dim, reset, valueOrUnknown(s.TreasuryUSDC), valueOrUnknown(s.TreasuryETH))
+	}
+	if s.TreasuryWarning != "" {
+		fmt.Printf("  %s⚠ %s%s\n", "\033[33m", s.TreasuryWarning, reset)
+	}
+}
+
+func valueOrUnknown(v string) string {
+	if v == "" {
+		return "unknown"
+	}
+	return v
 }
 
 func join(xs []string) string {
@@ -140,20 +165,23 @@ func join(xs []string) string {
 }
 
 func help() {
-	fmt.Printf(`%sinterest%s — plug into Fred yield
+	fmt.Printf(`%sfred.cash%s — plug into Fred yield
 
 %sUsage:%s
-  interest            connect and show current yield
-  interest deposit    deposit & lock funds, choose your yield plan
-  interest balance    show your position, accrued interest, unlock date
-  interest claim      claim streamed interest (Classic 8%% plan)
-  interest withdraw   withdraw instant payout / unlocked principal
-  interest status     show live service status
-  interest version    print version
-  interest help       show this
+  fred.cash            connect and show current yield
+  fred.cash deposit    deposit & lock funds, choose your yield plan
+  fred.cash balance    show your position, accrued interest, unlock date
+  fred.cash claim      claim streamed interest (Classic 8%% plan)
+  fred.cash withdraw   withdraw instant payout / unlocked principal
+  fred.cash status     show live service status
+  fred.cash version    print version
+  fred.cash help       show this
+
+%sLegacy:%s
+  interest             still works as a compatibility alias
 
 %sEnv:%s
-  INTEREST_API        override API base (default https://api.fred.cash)
-  INTEREST_FAST       skip the chain-watch animation in demos
-`, bold, reset, bold, reset, bold, reset)
+  INTEREST_API         override API base (default https://api.fred.cash)
+  INTEREST_FAST        skip the chain-watch animation in demos
+`, bold, reset, bold, reset, bold, reset, bold, reset)
 }

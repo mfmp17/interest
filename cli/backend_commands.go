@@ -111,6 +111,10 @@ func withdraw() {
 
 func backendDeposit() {
 	fmt.Printf("\n%s%s Fred mainnet deposit %s\n\n", bold, cyan, reset)
+	if s, err := fetchStatus(); err == nil {
+		printTreasuryNotice(s)
+		fmt.Println()
+	}
 	amt := prompt("  Amount USDC to deposit: ")
 	if strings.TrimSpace(amt) == "" {
 		fmt.Println("  Cancelled.")
@@ -130,7 +134,7 @@ func backendDeposit() {
 	err := apiJSON("POST", "/v1/deposits", map[string]string{"amount": amt, "asset": "USDC", "plan": plan}, &out)
 	if err != nil {
 		fmt.Printf("\n%s✗ backend deposit failed:%s %v\n", "\033[31m", reset, err)
-		fmt.Printf("%s  If testing locally, run: INTEREST_API=http://localhost:8090 interest deposit%s\n\n", dim, reset)
+		fmt.Printf("%s  If testing locally, run: INTEREST_API=http://localhost:8090 fred.cash deposit%s\n\n", dim, reset)
 		os.Exit(1)
 	}
 
@@ -141,13 +145,13 @@ func backendDeposit() {
 	qrterminal.GenerateHalfBlock(out.DepositURI, qrterminal.L, os.Stdout)
 	fmt.Printf("\n  %s%s%s\n", cyan+bold, out.Position.DepositAddress, reset)
 	fmt.Printf("\n  %sReceipt saved locally. Do not delete ~/.interest/receipts.json%s\n", dim, reset)
-	fmt.Printf("  Run %sinterest balance%s after sending to watch confirmation.\n\n", cyan, reset)
+	fmt.Printf("  Run %sfred.cash balance%s after sending to watch confirmation.\n\n", cyan, reset)
 }
 
 func backendBalance() {
 	r, ok := activeReceipt()
 	if !ok {
-		fmt.Printf("\n  No receipt found. Run %sinterest deposit%s first.\n\n", cyan, reset)
+		fmt.Printf("\n  No receipt found. Run %sfred.cash deposit%s first.\n\n", cyan, reset)
 		return
 	}
 	pos, err := fetchPosition(r)
@@ -179,6 +183,9 @@ func backendBalance() {
 	if p.UnlockAt != "" {
 		fmt.Printf("    Unlocks         %s\n", p.UnlockAt)
 	}
+	if s, err := fetchStatus(); err == nil {
+		printTreasuryNotice(s)
+	}
 	fmt.Println()
 }
 
@@ -194,8 +201,11 @@ func backendClaim() {
 		os.Exit(1)
 	}
 	if pos.Position.Plan != planClassic {
-		fmt.Printf("\n  Claim is for Classic 8%%. Use %sinterest withdraw%s for Instant 5%%.\n\n", cyan, reset)
+		fmt.Printf("\n  Claim is for Classic 8%%. Use %sfred.cash withdraw%s for Instant 5%%.\n\n", cyan, reset)
 		return
+	}
+	if s, err := fetchStatus(); err == nil {
+		printTreasuryNotice(s)
 	}
 	to := payoutAddress(pos.Position)
 	if to == "" {
@@ -219,6 +229,9 @@ func backendWithdraw() {
 	if err != nil {
 		fmt.Printf("\n%s✗ withdraw failed:%s %v\n\n", "\033[31m", reset, err)
 		os.Exit(1)
+	}
+	if s, err := fetchStatus(); err == nil {
+		printTreasuryNotice(s)
 	}
 	to := payoutAddress(pos.Position)
 	if to == "" {

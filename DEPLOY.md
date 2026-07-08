@@ -3,7 +3,7 @@
 This documents how the live setup is wired and how to reproduce / maintain it.
 
 **Live now:**
-- `curl -fsSL https://get.fred.cash | bash`  → installs the `interest` CLI
+- `curl -fsSL https://get.fred.cash | bash`  → installs the `fred.cash` CLI (`interest` remains a legacy alias)
 - `https://api.fred.cash/v1/status`          → the backend the CLI calls
 - `https://fred.cash` (apex)                 → the Plinko game (separate project)
 
@@ -79,8 +79,8 @@ Vercel then issued TLS certs automatically (~1–3 min after DNS resolved).
 
 ```bash
 curl -fsSL https://get.fred.cash | bash    # installs the CLI
-interest                                     # connects to api.fred.cash
-interest status
+fred.cash                                    # connects to api.fred.cash
+fred.cash status
 ```
 
 ## Day-to-day operations

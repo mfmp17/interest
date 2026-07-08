@@ -120,9 +120,9 @@ func localDeposit() {
 
 	fmt.Printf("\n  %s%s● Locked!%s %.2f %s secured. Unlocks %s.\n", green, bold, reset, amt, asset, unlock.Format("2006-01-02"))
 	if plan == planInstant {
-		fmt.Printf("  Your %s%.2f %s instant payout%s is available now — run %sinterest withdraw%s.\n", bold, instantNow, asset, reset, cyan, reset)
+		fmt.Printf("  Your %s%.2f %s instant payout%s is available now — run %sfred.cash withdraw%s.\n", bold, instantNow, asset, reset, cyan, reset)
 	} else {
-		fmt.Printf("  Interest streams monthly — run %sinterest balance%s to track it.\n", cyan, reset)
+		fmt.Printf("  Interest streams monthly — run %sfred.cash balance%s to track it.\n", cyan, reset)
 	}
 }
 
@@ -169,7 +169,7 @@ func localBalance() {
 	st := loadState()
 	pos := st.active()
 	if pos == nil {
-		fmt.Printf("\n  No active position. Run %sinterest deposit%s to start.\n\n", cyan, reset)
+		fmt.Printf("\n  No active position. Run %sfred.cash deposit%s to start.\n\n", cyan, reset)
 		return
 	}
 	now := time.Now()
@@ -182,7 +182,7 @@ func localBalance() {
 	fmt.Printf("    Plan           %s\n", planLabel)
 	if pos.Plan == planClassic {
 		fmt.Printf("    Interest paid  %.2f %s\n", pos.InterestPaid, pos.Asset)
-		fmt.Printf("    Claimable now  %s%.2f %s%s   ← run %sinterest claim%s\n", bold, pos.claimable(now), pos.Asset, reset, cyan, reset)
+		fmt.Printf("    Claimable now  %s%.2f %s%s   ← run %sfred.cash claim%s\n", bold, pos.claimable(now), pos.Asset, reset, cyan, reset)
 	} else {
 		fmt.Printf("    Instant payout %s%.2f %s%s   %s(withdraw anytime)%s\n", bold, pos.claimable(now), pos.Asset, reset, dim, reset)
 	}
@@ -199,12 +199,12 @@ func localClaim() {
 	}
 	now := time.Now()
 	if pos.Plan != planClassic {
-		fmt.Printf("\n  Claim is for the Classic 8%% plan. Use %sinterest withdraw%s for your instant payout.\n\n", cyan, reset)
+		fmt.Printf("\n  Claim is for the Classic 8%% plan. Use %sfred.cash withdraw%s for your instant payout.\n\n", cyan, reset)
 		return
 	}
 	c := pos.claimable(now)
 	if c < 0.01 {
-		fmt.Printf("\n  Nothing to claim yet — interest is still accruing. Check %sinterest balance%s.\n\n", cyan, reset)
+		fmt.Printf("\n  Nothing to claim yet — interest is still accruing. Check %sfred.cash balance%s.\n\n", cyan, reset)
 		return
 	}
 	fmt.Printf("\n  Claimable: %s%.2f %s%s\n", bold, c, pos.Asset, reset)

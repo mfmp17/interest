@@ -1,4 +1,4 @@
-# Fred — `interest` CLI
+# Fred — `fred.cash` CLI
 
 Anonymous, no-accounts CLI. Users run one line on a Mac and they're connected:
 
@@ -26,7 +26,7 @@ fred.cash (apex) ─► Vercel project "fred-cash" (Plinko game — separate)
 
 ```
 fred/
-├── cli/main.go         # the `interest` command (Go, single static binary)
+├── cli/main.go         # the `fred.cash` command (Go, single static binary)
 ├── api/main.go         # standalone API server (for local dev)
 ├── web/install.sh      # source of the installer (edit here)
 ├── site/               # the Vercel deployment unit
@@ -57,9 +57,9 @@ The `install.sh` served at `get.fred.cash` is served as `text/plain` so
 cd api && go build -o fred-api . && PORT=8080 ./fred-api
 
 # terminal 2 — point the CLI at local API and run it
-cd cli && go build -o interest .
+cd cli && go build -o fred.cash .
 INTEREST_API=http://localhost:8080 ./interest
-INTEREST_API=http://localhost:8080 ./interest status
+INTEREST_API=http://localhost:8080 ./fred.cash status
 ```
 
 The CLI defaults to `https://api.fred.cash` (see `apiBase()` in `cli/main.go`);

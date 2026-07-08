@@ -20,18 +20,42 @@ func (s *Server) routes() http.Handler {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	asset := s.app.cfg.Assets["USDC"]
+	ethBal, ethErr := s.app.chain.NativeBalance(r.Context(), s.app.cfg.TreasuryAddr)
+	usdcBal, usdcErr := s.app.chain.ERC20Balance(r.Context(), asset.Address, s.app.cfg.TreasuryAddr)
+	ethDisplay, usdcDisplay := "unknown", "unknown"
+	warning := ""
+	if ethErr == nil {
+		ethDisplay = FormatUnits(ethBal, 18)
+	}
+	if usdcErr == nil {
+		usdcDisplay = FormatUnits(usdcBal, asset.Decimals)
+	}
+	if ethErr != nil || usdcErr != nil {
+		warning = "Could not read treasury balance from Base mainnet right now."
+	} else if ethBal.Sign() == 0 && usdcBal.Sign() == 0 {
+		warning = "Treasury currently holds 0.00 ETH and 0.00 USDC; claims/withdrawals require treasury funding."
+	} else if ethBal.Sign() == 0 {
+		warning = "Treasury currently holds 0.00 ETH for gas; claims/withdrawals may fail until funded."
+	} else if usdcBal.Sign() == 0 {
+		warning = "Treasury currently holds 0.00 USDC; claims/withdrawals may fail until funded."
+	}
+
 	writeJSON(w, map[string]any{
-		"service":      "fred",
-		"status":       "operational",
-		"apr":          8,
-		"lock_days":    365,
-		"assets":       []string{"USDC"},
-		"tvl":          "$0",
-		"network":      s.app.cfg.Network,
-		"chain_id":     s.app.cfg.ChainID,
-		"lock_seconds": s.app.cfg.LockSeconds,
-		"treasury":     s.app.cfg.TreasuryAddr.Hex(),
-		"server_time":  time.Now().UTC().Format(time.RFC3339),
+		"service":          "fred",
+		"status":           "operational",
+		"apr":              8,
+		"lock_days":        365,
+		"assets":           []string{"USDC"},
+		"tvl":              "$0",
+		"network":          s.app.cfg.Network,
+		"chain_id":         s.app.cfg.ChainID,
+		"lock_seconds":     s.app.cfg.LockSeconds,
+		"treasury":         s.app.cfg.TreasuryAddr.Hex(),
+		"treasury_eth":     ethDisplay,
+		"treasury_usdc":    usdcDisplay,
+		"treasury_warning": warning,
+		"server_time":      time.Now().UTC().Format(time.RFC3339),
 	})
 }
 

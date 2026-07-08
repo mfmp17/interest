@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# Fred "interest" installer
+# Fred CLI installer
 #   curl -fsSL https://get.fred.cash | bash
 #
-# Detects macOS arch, downloads the matching binary from GitHub Releases,
-# installs to a directory on PATH, and prints next steps.
+# Installs the `fred.cash` command and keeps `interest` as a legacy alias.
 
 set -euo pipefail
 
 REPO="mfmp17/interest"
-BINARY="interest"
+BINARY="fred.cash"
+LEGACY_BINARY="interest"
 
 # --- pretty output -----------------------------------------------------------
 c_green='\033[32m'; c_cyan='\033[36m'; c_red='\033[31m'; c_dim='\033[2m'; c_bold='\033[1m'; c_reset='\033[0m'
@@ -38,9 +38,6 @@ say "Finding latest release..."
 URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
 
 # --- choose install dir ------------------------------------------------------
-# Best user experience on macOS: install into a directory already on the default
-# PATH. If it is not writable, use sudo. Only fall back to ~/.local/bin when sudo
-# is unavailable/cancelled.
 INSTALL_DIR=""
 USE_SUDO=""
 
@@ -66,11 +63,20 @@ fi
 
 chmod +x "$TMP"
 
+install_legacy_alias() {
+  if [ -n "$USE_SUDO" ]; then
+    sudo ln -sf "${INSTALL_DIR}/${BINARY}" "${INSTALL_DIR}/${LEGACY_BINARY}" 2>/dev/null || true
+  else
+    ln -sf "${INSTALL_DIR}/${BINARY}" "${INSTALL_DIR}/${LEGACY_BINARY}" 2>/dev/null || true
+  fi
+}
+
 if [ -n "$USE_SUDO" ]; then
   say "Installing to ${INSTALL_DIR} (may ask for your Mac password)..."
   if ! sudo mkdir -p "$INSTALL_DIR" || ! sudo install -m 0755 "$TMP" "${INSTALL_DIR}/${BINARY}"; then
     say "sudo install failed/cancelled; falling back to ~/.local/bin"
     INSTALL_DIR="$HOME/.local/bin"
+    USE_SUDO=""
     mkdir -p "$INSTALL_DIR"
     mv "$TMP" "${INSTALL_DIR}/${BINARY}"
   else
@@ -81,7 +87,9 @@ else
   mv "$TMP" "${INSTALL_DIR}/${BINARY}"
 fi
 
+install_legacy_alias
 ok "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"
+ok "Legacy alias available as ${LEGACY_BINARY}"
 
 # --- verify ------------------------------------------------------------------
 if ! "${INSTALL_DIR}/${BINARY}" version >/dev/null 2>&1; then
@@ -101,4 +109,4 @@ case ":$PATH:" in
 esac
 
 printf "\n"
-ok "Done. Run: ${c_cyan}${c_bold}${BINARY}${c_reset}"
+ok "Done. Run: ${c_cyan}${c_bold}${BINARY} deposit${c_reset}"
