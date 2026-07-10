@@ -40,3 +40,23 @@ func TestStoreMigratesOldPendingRequestedPrincipal(t *testing.T) {
 		t.Fatalf("expected migrated expected=10000000 principal=0, got expected=%s principal=%s", p.ExpectedPrincipal, p.Principal)
 	}
 }
+
+func TestStoreLoadsPreCursorStateAndScansFromStartBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	raw := `{"next_derive_index":1,"positions":[{"id":"legacy","asset":"USDC","decimals":6,"expected_principal":"10000000","principal":"0","plan":"classic8","status":"pending_deposit","deposit_address":"0xabc","start_block":100,"interest_paid":"0","instant_paid":"0"}]}`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := OpenStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := st.Get("legacy")
+	if !ok {
+		t.Fatal("missing legacy position")
+	}
+	from, to, ok := ConfirmedScanRange(p, 120, 3)
+	if !ok || from != 100 || to != 118 {
+		t.Fatalf("legacy scan range = %d..%d ok=%v", from, to, ok)
+	}
+}

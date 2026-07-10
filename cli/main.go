@@ -22,17 +22,31 @@ func apiBase() string {
 var version = "dev"
 
 type statusResp struct {
-	Service         string   `json:"service"`
-	APR             float64  `json:"apr"`
-	LockDays        int      `json:"lock_days"`
-	Assets          []string `json:"assets"`
-	TVL             string   `json:"tvl"`
-	Status          string   `json:"status"`
-	Treasury        string   `json:"treasury"`
-	TreasuryETH     string   `json:"treasury_eth"`
-	TreasuryUSDC    string   `json:"treasury_usdc"`
-	TreasuryWarning string   `json:"treasury_warning"`
-	ServerTime      string   `json:"server_time"`
+	Service            string   `json:"service"`
+	APR                float64  `json:"apr"`
+	LockDays           int      `json:"lock_days"`
+	Assets             []string `json:"assets"`
+	TVL                string   `json:"tvl"`
+	Status             string   `json:"status"`
+	Network            string   `json:"network"`
+	ChainID            int64    `json:"chain_id"`
+	PrincipalLiability string   `json:"principal_liability"`
+	ClaimableLiability string   `json:"claimable_liability"`
+	TotalLiability     string   `json:"total_liability"`
+	ReserveRatio       string   `json:"reserve_ratio"`
+	Underfunded        bool     `json:"underfunded"`
+	Shortfall          string   `json:"shortfall"`
+	ScannerLatestBlock uint64   `json:"scanner_latest_block"`
+	ScannerLastBlock   uint64   `json:"scanner_last_block"`
+	ScannerLagBlocks   uint64   `json:"scanner_lag_blocks"`
+	ScannerLastScanAt  string   `json:"scanner_last_scan_at"`
+	ActivePositions    int      `json:"active_positions"`
+	PendingPositions   int      `json:"pending_positions"`
+	Treasury           string   `json:"treasury"`
+	TreasuryETH        string   `json:"treasury_eth"`
+	TreasuryUSDC       string   `json:"treasury_usdc"`
+	TreasuryWarning    string   `json:"treasury_warning"`
+	ServerTime         string   `json:"server_time"`
 }
 
 const (
@@ -63,6 +77,20 @@ func main() {
 		claim()
 	case "withdraw":
 		withdraw()
+	case "doctor":
+		doctorCommand()
+	case "support":
+		supportCommand()
+	case "positions":
+		positionsCommand()
+	case "use":
+		if len(args) < 2 {
+			fmt.Println("usage: fred.cash use <position-id>")
+			os.Exit(1)
+		}
+		useCommand(args[1])
+	case "receipt":
+		receiptCommand(args[1:])
 	case "update", "upgrade":
 		updateCLI()
 	case "version", "--version", "-v":
@@ -132,6 +160,13 @@ func printStatus() {
 	fmt.Printf("  Lock:   %d days\n", s.LockDays)
 	fmt.Printf("  Assets: %s\n", join(s.Assets))
 	fmt.Printf("  TVL:    %s\n", s.TVL)
+	if s.TotalLiability != "" {
+		fmt.Printf("  Owed:   %s USDC\n", s.TotalLiability)
+		fmt.Printf("  Reserve: %s\n", valueOrUnknown(s.ReserveRatio))
+	}
+	if s.ScannerLatestBlock > 0 {
+		fmt.Printf("  Scan:   block %d / %d · lag %d\n", s.ScannerLastBlock, s.ScannerLatestBlock, s.ScannerLagBlocks)
+	}
 	printTreasuryNotice(s)
 	fmt.Printf("  Time:   %s\n", s.ServerTime)
 }
@@ -176,6 +211,12 @@ func help() {
   fred.cash claim      claim streamed interest (Classic 8%% plan)
   fred.cash withdraw   withdraw instant payout / unlocked principal
   fred.cash status     show live service status
+  fred.cash doctor     diagnose API, scanner, receipt, and deposit state
+  fred.cash support    print a redacted JSON support bundle
+  fred.cash positions  list local positions
+  fred.cash use <id>   switch the active position
+  fred.cash receipt export [path]
+  fred.cash receipt import <path>
   fred.cash update     update fred.cash to the latest release
   fred.cash version    print version
   fred.cash help       show this

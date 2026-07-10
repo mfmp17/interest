@@ -84,8 +84,12 @@ type InboundTransfer struct {
 }
 
 func (cc *ChainClient) InboundTransfers(ctx context.Context, token, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
+	latest, err := cc.LatestBlock(ctx)
+	if err != nil {
+		return nil, err
+	}
 	toTopic := common.BytesToHash(to.Bytes())
-	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, []common.Address{token}, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
+	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, latest, []common.Address{token}, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
 	if err != nil {
 		return nil, err
 	}
@@ -93,32 +97,28 @@ func (cc *ChainClient) InboundTransfers(ctx context.Context, token, to common.Ad
 }
 
 func (cc *ChainClient) InboundTransfersAnyToken(ctx context.Context, to common.Address, fromBlock uint64) ([]*InboundTransfer, error) {
+	latest, err := cc.LatestBlock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cc.InboundTransfersAnyTokenRange(ctx, to, fromBlock, latest)
+}
+
+func (cc *ChainClient) InboundTransfersAnyTokenRange(ctx context.Context, to common.Address, fromBlock, toBlock uint64) ([]*InboundTransfer, error) {
 	toTopic := common.BytesToHash(to.Bytes())
-	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, nil, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
+	logs, err := cc.filterTransferLogsChunked(ctx, fromBlock, toBlock, nil, [][]common.Hash{{erc20TransferTopic}, nil, {toTopic}})
 	if err != nil {
 		return nil, err
 	}
 	return parseTransferLogs(logs), nil
 }
 
-func (cc *ChainClient) filterTransferLogsChunked(ctx context.Context, fromBlock uint64, addresses []common.Address, topics [][]common.Hash) ([]types.Log, error) {
-	latest, err := cc.LatestBlock(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if fromBlock > latest {
-		return nil, nil
-	}
-
+func (cc *ChainClient) filterTransferLogsChunked(ctx context.Context, fromBlock, toBlock uint64, addresses []common.Address, topics [][]common.Hash) ([]types.Log, error) {
 	var all []types.Log
-	for start := fromBlock; start <= latest; {
-		end := start + maxGetLogsBlockRange - 1
-		if end > latest || end < start {
-			end = latest
-		}
+	for _, chunk := range blockChunks(fromBlock, toBlock, maxGetLogsBlockRange) {
 		q := ethereum.FilterQuery{
-			FromBlock: new(big.Int).SetUint64(start),
-			ToBlock:   new(big.Int).SetUint64(end),
+			FromBlock: new(big.Int).SetUint64(chunk[0]),
+			ToBlock:   new(big.Int).SetUint64(chunk[1]),
 			Addresses: addresses,
 			Topics:    topics,
 		}
@@ -127,12 +127,27 @@ func (cc *ChainClient) filterTransferLogsChunked(ctx context.Context, fromBlock 
 			return nil, err
 		}
 		all = append(all, logs...)
-		if end == latest {
+	}
+	return all, nil
+}
+
+func blockChunks(fromBlock, toBlock, maxRange uint64) [][2]uint64 {
+	if fromBlock > toBlock || maxRange == 0 {
+		return nil
+	}
+	var chunks [][2]uint64
+	for start := fromBlock; start <= toBlock; {
+		end := start + maxRange - 1
+		if end > toBlock || end < start {
+			end = toBlock
+		}
+		chunks = append(chunks, [2]uint64{start, end})
+		if end == toBlock {
 			break
 		}
 		start = end + 1
 	}
-	return all, nil
+	return chunks
 }
 
 func parseTransferLogs(logs []types.Log) []*InboundTransfer {

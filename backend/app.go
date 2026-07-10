@@ -92,38 +92,40 @@ func (a *App) ScanOnce(ctx context.Context) error {
 			continue
 		}
 		to := common.HexToAddress(p.DepositAddress)
-		trs, err := a.chain.InboundTransfersAnyToken(ctx, to, p.StartBlock)
-		if err != nil {
-			return err
-		}
+		fromBlock, toBlock, hasRange := ConfirmedScanRange(p, latest, a.cfg.Confirmations)
 		changed := false
-		for _, tr := range trs {
-			if latest < tr.Block+a.cfg.Confirmations-1 {
-				continue
+		if hasRange {
+			trs, err := a.chain.InboundTransfersAnyTokenRange(ctx, to, fromBlock, toBlock)
+			if err != nil {
+				return err
 			}
-			asset, supported := a.assetByToken(tr.Token)
-			if supported && asset.Decimals == p.Decimals {
-				if p.AddFunding(tr.TxHash.Hex(), tr.From.Hex(), tr.Amount, tr.Block, time.Now().UTC()) {
-					changed = true
-					if asset.Symbol != p.Asset {
-						if p.AddAdminAlert(AdminAlert{Kind: "alternate_stable_accepted", TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: "supported stable sent to deposit address and counted as principal"}) {
-							log.Printf("ADMIN_ALERT position=%s kind=alternate_stable_accepted token=%s amount=%s tx=%s from=%s", p.ID, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
-							changed = true
+			for _, tr := range trs {
+				asset, supported := a.assetByToken(tr.Token)
+				if supported && asset.Decimals == p.Decimals {
+					if p.AddFunding(tr.TxHash.Hex(), tr.From.Hex(), tr.Amount, tr.Block, time.Now().UTC()) {
+						changed = true
+						if asset.Symbol != p.Asset {
+							if p.AddAdminAlert(AdminAlert{Kind: "alternate_stable_accepted", TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: "supported stable sent to deposit address and counted as principal"}) {
+								log.Printf("ADMIN_ALERT position=%s kind=alternate_stable_accepted token=%s amount=%s tx=%s from=%s", p.ID, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
+								changed = true
+							}
 						}
 					}
+					continue
 				}
-				continue
+				kind := "unsupported_token"
+				msg := "unsupported ERC-20 sent to deposit address; admin recovery may be needed"
+				if supported && asset.Decimals != p.Decimals {
+					kind = "unsupported_token_decimals"
+					msg = "supported token sent but decimals do not match this position; admin review needed"
+				}
+				if p.AddAdminAlert(AdminAlert{Kind: kind, TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: msg}) {
+					log.Printf("ADMIN_ALERT position=%s kind=%s token=%s amount=%s tx=%s from=%s", p.ID, kind, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
+					changed = true
+				}
 			}
-			kind := "unsupported_token"
-			msg := "unsupported ERC-20 sent to deposit address; admin recovery may be needed"
-			if supported && asset.Decimals != p.Decimals {
-				kind = "unsupported_token_decimals"
-				msg = "supported token sent but decimals do not match this position; admin review needed"
-			}
-			if p.AddAdminAlert(AdminAlert{Kind: kind, TxHash: tr.TxHash.Hex(), From: tr.From.Hex(), To: tr.To.Hex(), Token: tr.Token.Hex(), Amount: tr.Amount.String(), Block: tr.Block, Message: msg}) {
-				log.Printf("ADMIN_ALERT position=%s kind=%s token=%s amount=%s tx=%s from=%s", p.ID, kind, tr.Token.Hex(), tr.Amount.String(), tr.TxHash.Hex(), tr.From.Hex())
-				changed = true
-			}
+			MarkScanComplete(p, toBlock, time.Now())
+			changed = true
 		}
 		if changed {
 			_ = a.store.Upsert(p)

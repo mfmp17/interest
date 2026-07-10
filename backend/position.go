@@ -57,6 +57,8 @@ type Position struct {
 	UnlockAt          time.Time      `json:"unlock_at"`
 	LockSeconds       int64          `json:"lock_seconds"`
 	StartBlock        uint64         `json:"start_block"`
+	LastScannedBlock  uint64         `json:"last_scanned_block,omitempty"`
+	LastScanAt        *time.Time     `json:"last_scan_at,omitempty"`
 	Fundings          []Funding      `json:"fundings,omitempty"`
 	AdminAlerts       []AdminAlert   `json:"admin_alerts,omitempty"`
 	InterestPaid      string         `json:"interest_paid"`

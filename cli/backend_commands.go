@@ -44,6 +44,9 @@ type backendPosition struct {
 	ConfirmedAt       string `json:"confirmed_at"`
 	UnlockAt          string `json:"unlock_at"`
 	LockSeconds       int64  `json:"lock_seconds"`
+	StartBlock        uint64 `json:"start_block"`
+	LastScannedBlock  uint64 `json:"last_scanned_block"`
+	LastScanAt        string `json:"last_scan_at"`
 	InterestPaid      string `json:"interest_paid"`
 	InstantPaid       string `json:"instant_paid"`
 	PrincipalPaid     bool   `json:"principal_paid"`
@@ -61,14 +64,16 @@ type createDepositResp struct {
 }
 
 type positionResp struct {
-	Position         backendPosition `json:"position"`
-	Claimable        string          `json:"claimable"`
-	ClaimableDisplay string          `json:"claimable_display"`
-	PrincipalDisplay string          `json:"principal_display"`
-	ExpectedDisplay  string          `json:"expected_display"`
-	MissingDisplay   string          `json:"missing_display"`
-	ExtraDisplay     string          `json:"extra_display"`
-	FundingCount     int             `json:"funding_count"`
+	Position              backendPosition `json:"position"`
+	Claimable             string          `json:"claimable"`
+	ClaimableDisplay      string          `json:"claimable_display"`
+	PrincipalDisplay      string          `json:"principal_display"`
+	ExpectedDisplay       string          `json:"expected_display"`
+	MissingDisplay        string          `json:"missing_display"`
+	ExtraDisplay          string          `json:"extra_display"`
+	FundingCount          int             `json:"funding_count"`
+	DepositBalance        string          `json:"deposit_balance"`
+	DepositBalanceDisplay string          `json:"deposit_balance_display"`
 }
 
 type txResp struct {
@@ -174,6 +179,16 @@ func backendBalance() {
 	fmt.Printf("    Plan            %s\n", planLabel(p.Plan))
 	fmt.Printf("    Claimable       %s %s\n", pos.ClaimableDisplay, p.Asset)
 	fmt.Printf("    Deposit address %s\n", short(p.DepositAddress))
+	if pos.DepositBalanceDisplay != "" {
+		fmt.Printf("    Wallet balance  %s %s\n", pos.DepositBalanceDisplay, p.Asset)
+	}
+	if p.LastScannedBlock > 0 {
+		fmt.Printf("    Last scanned    block %d", p.LastScannedBlock)
+		if p.LastScanAt != "" {
+			fmt.Printf(" · %s", p.LastScanAt)
+		}
+		fmt.Println()
+	}
 	if p.DepositTx != "" {
 		fmt.Printf("    Deposit tx      %s\n", short(p.DepositTx))
 	}

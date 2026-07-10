@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type Server struct{ app *App }
@@ -23,6 +27,11 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	asset := s.app.cfg.Assets["USDC"]
 	ethBal, ethErr := s.app.chain.NativeBalance(r.Context(), s.app.cfg.TreasuryAddr)
 	usdcBal, usdcErr := s.app.chain.ERC20Balance(r.Context(), asset.Address, s.app.cfg.TreasuryAddr)
+	latestBlock, latestErr := s.app.chain.LatestBlock(r.Context())
+	now := time.Now().UTC()
+	positions := s.app.store.All()
+	accounting := BuildStatusAccounting(positions, now, usdcBal, asset.Decimals)
+	scanner := BuildScannerHealth(positions, latestBlock)
 	ethDisplay, usdcDisplay := "unknown", "unknown"
 	warning := ""
 	if ethErr == nil {
@@ -33,6 +42,12 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	if ethErr != nil || usdcErr != nil {
 		warning = "Could not read treasury balance from Base mainnet right now."
+	} else if latestErr != nil {
+		warning = "Could not read the latest Base mainnet block; deposit scanner health is unknown."
+	} else if scanner.LagBlocks > 100 {
+		warning = fmt.Sprintf("Deposit scanner is %d blocks behind Base mainnet.", scanner.LagBlocks)
+	} else if accounting.Underfunded {
+		warning = "Treasury is underfunded by " + accounting.Shortfall + " USDC versus current principal and claimable liabilities."
 	} else if ethBal.Sign() == 0 && usdcBal.Sign() == 0 {
 		warning = "Treasury currently holds 0.00 ETH and 0.00 USDC; claims/withdrawals require treasury funding."
 	} else if ethBal.Sign() == 0 {
@@ -42,20 +57,32 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]any{
-		"service":          "fred",
-		"status":           "operational",
-		"apr":              8,
-		"lock_days":        365,
-		"assets":           []string{"USDC"},
-		"tvl":              "$0",
-		"network":          s.app.cfg.Network,
-		"chain_id":         s.app.cfg.ChainID,
-		"lock_seconds":     s.app.cfg.LockSeconds,
-		"treasury":         s.app.cfg.TreasuryAddr.Hex(),
-		"treasury_eth":     ethDisplay,
-		"treasury_usdc":    usdcDisplay,
-		"treasury_warning": warning,
-		"server_time":      time.Now().UTC().Format(time.RFC3339),
+		"service":              "fred",
+		"status":               "operational",
+		"apr":                  8,
+		"lock_days":            365,
+		"assets":               []string{"USDC"},
+		"tvl":                  accounting.TVL,
+		"principal_liability":  accounting.PrincipalLiability,
+		"claimable_liability":  accounting.ClaimableLiability,
+		"total_liability":      accounting.TotalLiability,
+		"reserve_ratio":        accounting.ReserveRatio,
+		"underfunded":          accounting.Underfunded,
+		"shortfall":            accounting.Shortfall,
+		"scanner_latest_block": latestBlock,
+		"scanner_last_block":   scanner.LastScannedBlock,
+		"scanner_lag_blocks":   scanner.LagBlocks,
+		"scanner_last_scan_at": scanner.LastScanAt,
+		"active_positions":     scanner.ActivePositions,
+		"pending_positions":    scanner.PendingPositions,
+		"network":              s.app.cfg.Network,
+		"chain_id":             s.app.cfg.ChainID,
+		"lock_seconds":         s.app.cfg.LockSeconds,
+		"treasury":             s.app.cfg.TreasuryAddr.Hex(),
+		"treasury_eth":         ethDisplay,
+		"treasury_usdc":        usdcDisplay,
+		"treasury_warning":     warning,
+		"server_time":          now.Format(time.RFC3339),
 	})
 }
 
@@ -119,7 +146,12 @@ func (s *Server) getPosition(w http.ResponseWriter, r *http.Request, id string) 
 	}
 	_ = s.app.ScanOnce(r.Context())
 	p, _ = s.app.store.Get(id)
-	writeJSON(w, positionDTO(p))
+	asset := s.app.cfg.Assets[p.Asset]
+	balance, err := s.app.chain.ERC20Balance(r.Context(), asset.Address, common.HexToAddress(p.DepositAddress))
+	if err != nil {
+		balance = nil
+	}
+	writeJSON(w, PositionDTOWithDepositBalance(p, balance))
 }
 
 type payoutReq struct{ Token, To string }
@@ -150,6 +182,15 @@ func (s *Server) withdraw(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	writeJSON(w, res)
+}
+
+func PositionDTOWithDepositBalance(p *Position, balance *big.Int) map[string]any {
+	dto := positionDTO(p)
+	if balance != nil {
+		dto["deposit_balance"] = balance.String()
+		dto["deposit_balance_display"] = FormatUnits(balance, p.Decimals)
+	}
+	return dto
 }
 
 func positionDTO(p *Position) map[string]any {
