@@ -13,3 +13,4 @@ backend/fred-backend
 # vercel
 .vercel
 node_modules/
+api/interest-api
