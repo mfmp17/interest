@@ -1,0 +1,10 @@
+{
+  "name": "fred (fred.cash)",
+  "install": "set -e; for m in backend cli api site; do (cd \"$m\" && go build ./...); done",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd backend && PORT=8080 go run ."
+    }
+  ]
+}
